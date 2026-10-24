@@ -1,0 +1,105 @@
+name: iOS Build
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build and test
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_15.4.app || sudo xcode-select -s /Applications/Xcode.app
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate project
+        run: xcodegen generate
+
+      - name: Build app
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project Sawt.xcodeproj \
+            -scheme Sawt \
+            -sdk iphonesimulator \
+            -destination 'platform=iOS Simulator,name=iPhone 15' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO | xcpretty || xcodebuild build -project Sawt.xcodeproj -scheme Sawt -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 15' -derivedDataPath build CODE_SIGNING_ALLOWED=NO
+
+      - name: Run unit tests
+        run: |
+          xcodebuild test \
+            -project Sawt.xcodeproj \
+            -scheme Sawt \
+            -sdk iphonesimulator \
+            -destination 'platform=iOS Simulator,name=iPhone 15' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Lint
+        run: |
+          brew install swiftlint || true
+          swiftlint lint --strict --quiet || true
+
+      - name: Package app
+        run: |
+          mkdir -p artifacts
+          APP=$(find build/Build/Products/Debug-iphonesimulator -maxdepth 1 -name '*.app' | head -1)
+          echo "Found app: $APP"
+          if [ -n "$APP" ]; then ditto -c -k --sequesterRsrc --keepParent "$APP" artifacts/SawtApp.zip; fi
+          ls -la artifacts
+
+      - name: Upload app artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SawtApp
+          path: artifacts/SawtApp.zip
+          if-no-files-found: error
+
+  ui:
+    name: UI screenshots
+    runs-on: macos-14
+    needs: build
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_15.4.app || sudo xcode-select -s /Applications/Xcode.app
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate project
+        run: xcodegen generate
+
+      - name: Launch and screenshot
+        run: |
+          set -e
+          xcrun simctl boot 'iPhone 15' || true
+          xcrun simctl bootstatus 'iPhone 15' -b || true
+          xcodebuild build -project Sawt.xcodeproj -scheme Sawt -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 15' -derivedDataPath build CODE_SIGNING_ALLOWED=NO
+          APP=$(find build/Build/Products/Debug-iphonesimulator -maxdepth 1 -name '*.app' | head -1)
+          xcrun simctl install booted "$APP"
+          xcrun simctl launch booted com.sawt.player || true
+          sleep 8
+          mkdir -p artifacts/screenshots
+          xcrun simctl io booted screenshot artifacts/screenshots/home.png
+          xcrun simctl ui booted appearance dark || true
+          sleep 2
+          xcrun simctl io booted screenshot artifacts/screenshots/home_dark.png
+          ls -la artifacts/screenshots
+
+      - name: Upload screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: artifacts/screenshots
+          if-no-files-found: error
