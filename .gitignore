@@ -1,0 +1,8 @@
+.DS_Store
+build/
+DerivedData/
+*.xcodeproj/icuserdata/
+artifacts/
+*.xcuserstate
+__pycache__/
+.venv/
