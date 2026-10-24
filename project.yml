@@ -1,0 +1,35 @@
+name: Sawt
+options:
+  bundleIdPrefix: com.sawt
+settings:
+  base:
+    SWIFT_VERSION: 5.9
+    IPHONEOS_DEPLOYMENT_TARGET: 17.0
+targets:
+  Sawt:
+    type: application
+    platform: iOS
+    sources: [Sawt/Modern]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.sawt.player
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UIBackgroundModes: audio
+        GENERATE_INFOPLIST_FILE: YES
+  SawtTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources: [Tests]
+    dependencies: [target: Sawt]
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.sawt.player.tests
+schemes:
+  Sawt:
+    build:
+      targets:
+        Sawt: all
+        SawtTests: [test]
+    test:
+      targets: [SawtTests]
